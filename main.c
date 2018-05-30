@@ -9,18 +9,30 @@
  
 ISR(PCINT0_vect)
 {
-	PORTB ^= (1 << PB3);  // toggle pins PB0 and PB2, on logical change PCINT4 pin
+	PORTB ^= (1 << PB3);  // toggle pin PB3, on logical change PCINT4 pin
+}
+
+
+ISR(TIM0_OVF_vect)
+{
+	PORTB ^= (1 << PB2);  // toggle pin PB2, on expiry of timer
 }
 
 int main (void)
 {
+	// init counter
+	TCCR0B = (1 << CS02 | 1 << CS00);
+	TIMSK = (1 << TOIE0);
+
+	// init pin interrupt
 	GIMSK |= (1 << PCIE);   // pin change interrupt enable
 	PCMSK |= (1 << PCINT4); // pin change interrupt enabled for PCINT4
+
 	sei();                  // enable interrupts
 
 	DDRB = (1 << PB3) | (1 << PB2) | (1 << PB1) | (1 << PB0);;
 	for (uint64_t i = 0;; ++i) {
-		int n = i % 3;
+		int n = i % 2;
 		// pin n high
 		PORTB ^= 1 << n; 
 		_delay_ms(1000);
