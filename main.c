@@ -51,6 +51,7 @@ int wait_or_expire(int value, int delay_qms) {
 		// push value of pinb5 into low bit of debounce
 		debounce = (debounce << 1) | ((PINB & (1 << PB4)) >> PB4);
 
+		// FIXME: timeout should return the exact delay requested - the code below would return a very small delay on timeout as TCNT will have wrapped (by definition)
 		if ((value == 0 && debounce == 0) || 	// low needed and found
 		    (value != 0 && debounce == 0xFF) ||	// high needed and found
 		    (TIFR & (1 << TOV0))) {		// timer timed out
