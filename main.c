@@ -9,29 +9,31 @@
  
 static uint8_t debounce = 0x55; // 01010101 pattern
 
-void expire_init() {
-	TCCR0B = (1 << CS02); // F_CPU/256, tick = 256us, quarter of a ms, qms
+void error() {
+	for (;;) {
+		_delay_ms(500);
+		PORTB ^= 1 << PB3; 
+	}
 }
 
-void expire(int delay) {
-	for (;;) { // timer is only 256 bit, this allows delays from 0.25ms to 8191ms
-		if (delay <= 0) {
-			return;
-		} else if (delay > 256) {
-			TCNT0 = 0;		// count another 256
-		} else {
-			TCNT0 = 256 - delay;	// just count the remainder
-		}
-		TIFR |= (1 << TOV0);	// reset timer flag
-		for (;;) {
-			if (TIFR & (1 << TOV0)) {	// timer timed out?
-				if (delay > 256) {
-					delay -= 256;
-				} else {
-					return;
-				}
-			}
-		}
+void expire_init() {
+}
+
+void expire(int delay_qms) {
+	if (delay_qms <= 0) return;
+	if (delay_qms < 256) {
+		TCCR0B = (1 << CS02); // F_CPU/256, tick = 256us, quarter of a ms, qms
+		TCNT0 = 256 - delay_qms;	// just count the remainder
+	} else if (delay_qms < 1024) {
+		TCCR0B = (1 << CS02) | (1 << CS00); // F_CPU/1024, tick = 1024
+		TCNT0 = 256 - (delay_qms / 4);	// just count the remainder
+	} else {
+		error();
+	}
+
+	TIFR |= (1 << TOV0);	// reset timer flag
+	for (;;) {
+		if (TIFR & (1 << TOV0)) return;	// timer timed out?
 	}
 }
 
@@ -88,9 +90,13 @@ int main(void)
 	sei();                  // enable interrupts
 	for (;;) {
 		//wait_or_expire(0, 400);
-		for (int i = 254; i < 262; i++) {
+		expire(40);
+		PORTB ^= 1 << PB2; 
+		expire(40);
+		PORTB ^= 1 << PB2; 
+		for (int i = 254; i < 270; i++) {
 			expire(i);
-			PORTB ^= 1 << PB3; 
+			PORTB ^= 1 << PB2; 
 		}
 	}
 	return 1;
