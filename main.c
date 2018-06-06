@@ -21,9 +21,9 @@ void bitbang_spi(uint8_t b) {
 }
 
 #define BUTTON_NONE 0x00000000
-#define BUTTON_UP 0x10ef01fe
-#define BUTTON_DOWN 0x10ef00ff
-#define BUTTON_SELECT 0x10ef04fb
+#define BUTTON_UP 0xfe01ef10 //0x10ef01fe
+#define BUTTON_DOWN 0xff00ef10 //0x10ef00ff
+#define BUTTON_SELECT 0xfb04ef10 //0x10ef04fb
 
 void button_pressed(uint32_t button) {
 	bitbang_spi(button >> 24);
@@ -88,17 +88,19 @@ static packet_t packet;
 void packet_start(void) {
 	packet.bits = 0;
 	packet.button = BUTTON_NONE;
-	packet.repeats = 0;
 } 
 
 void packet_repeat(void) {
+	bitbang_spi(120);
 	if (packet.repeats < 255) packet.repeats++;
+	bitbang_spi(packet.repeats);
 } 
 
 void packet_release(void) {
 	if (packet.button_to_release) {
-		button_released(packet.button, packet.repeats);
+		button_released(packet.button_to_release, packet.repeats);
 		packet.button_to_release = BUTTON_NONE;
+		packet.repeats = 0;
 	}
 }
 
@@ -140,6 +142,7 @@ static state_t states[] = {
 
 void packet_init(void) {
 	packet.state = &states[INIT];
+	packet.repeats = 0;
 	//packet.state_started = ticks | TCNT0;
 	packet_start();
 } 
@@ -170,7 +173,9 @@ void packet_change_state(uint8_t state) {
 }
 
 void packet_shift(uint8_t value) {
-	packet.button = (packet.button << 1) | (value & 0x01);
+	// least significant bit first
+	packet.button = (packet.button >> 1);
+	if (value) packet.button |= 0x80000000;
 	/*
 	for (int i = 0, b = packet.bits; i < 8; i++, b = b << 1) {
 		if (b & 0x80) { 
