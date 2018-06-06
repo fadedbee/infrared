@@ -1,4 +1,5 @@
 2018-05-23T19:55 21:45 - investigating protocol with logic analyser
 2018-05-30T19:05 22:30 - building circuit, writing blinky and interrupts
 2018-06-02T05:55 08:55 - writing expire(), wait_or_expire() and wait()
-2018-06-04T18:25 
+2018-06-04T18:25 21:00 - dead end
+2018-06-06T19:45 
