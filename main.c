@@ -33,6 +33,7 @@ typedef struct control_state {
 	uint8_t select_pressed;
 	uint8_t select_released;
 	uint8_t ticks;
+	uint8_t repeats;
 	uint8_t next;
 } control_state_t;
 
@@ -74,16 +75,16 @@ void control_error(void) {
 #define ERR	8
 
 static control_state_t control_states[] = {
-	//		ENTRY			UP_P	UP_R	DOWN_P	DOWN_R	SEL_P	SEL_R	TICKS	NEXT
-	{ ZERO,		control_volume_down,	ZERO,	ZERO,	ZERO,	ZERO,	ZERO,	ZERO,	3*16,	IDLE	},
-	{ IDLE,		control_idle,		VOLUP,	ERR,	VOLDN,	ERR,	SELECT,	ERR,	0,	ERR	},
-	{ VOLUP,	control_volume_up,	ERR,	VOLUPC,	ERR,	ERR,	ERR,	ERR,	0,	ERR	},
-	{ VOLUPC,	NULL,			ERR,	ERR,	VOLDN,	ERR,	SELECT,	ERR,	1*16,	IDLE	},
-	{ VOLDN,	control_volume_down,	ERR,	ERR,	ERR,	VOLDNC,	ERR,	ERR,	4,	ZERO	},
-	{ VOLDNC,	NULL,			ERR,	ERR,	VOLDN,	ERR,	SELECT,	ERR,	1*16,	IDLE	},
-	{ SELECT,	control_select,		ERR,	ERR,	ERR,	ERR,	ERR,	SELC,	0,	ERR	},
-	{ SELC,		NULL,			ERR,	ERR,	ERR,	ERR,	SELECT,	ERR,	1,	IDLE	},
-	{ ERR,		control_error,		ERR,	ERR,	ERR,	ERR,	ERR,	ERR,	1,	IDLE	},
+	//		ENTRY			UP_P	UP_R	DOWN_P	DOWN_R	SEL_P	SEL_R	TICKS	REPEATS	NEXT
+	{ ZERO,		control_volume_down,	ZERO,	ZERO,	ZERO,	ZERO,	ZERO,	ZERO,	48,	0,	IDLE	},
+	{ IDLE,		control_idle,		VOLUP,	ERR,	VOLDN,	ERR,	SELECT,	ERR,	0,	0,	ERR	},
+	{ VOLUP,	control_volume_up,	ERR,	VOLUPC,	ERR,	ERR,	ERR,	ERR,	0,	0,	ERR	},
+	{ VOLUPC,	NULL,			ERR,	ERR,	VOLDN,	ERR,	SELECT,	ERR,	16,	0,	IDLE	},
+	{ VOLDN,	control_volume_down,	ERR,	ERR,	ERR,	VOLDNC,	ERR,	ERR,	0,	12,	ZERO	},
+	{ VOLDNC,	NULL,			ERR,	ERR,	VOLDN,	ERR,	SELECT,	ERR,	16,	0,	IDLE	},
+	{ SELECT,	control_select,		ERR,	ERR,	ERR,	ERR,	ERR,	SELC,	0,	0,	ERR	},
+	{ SELC,		NULL,			ERR,	ERR,	ERR,	ERR,	SELECT,	ERR,	1,	0,	IDLE	},
+	{ ERR,		control_error,		ERR,	ERR,	ERR,	ERR,	ERR,	ERR,	1,	0,	IDLE	},
 };
 
 void control_change_state(uint8_t state) {
@@ -101,24 +102,36 @@ void control_up_pressed(void) {
 	control_change_state(control_state->up_pressed);
 }
 
-void control_up_released(void) {
-	control_change_state(control_state->up_released);
+void control_up_released(uint8_t repeats) {
+	if (control_state->repeats > 0 && repeats > control_state->repeats) {
+		control_change_state(control_state->next);
+	} else {
+		control_change_state(control_state->up_released);
+	}
 }
 
 void control_down_pressed(void) {
 	control_change_state(control_state->down_pressed);
 }
 
-void control_down_released(void) {
-	control_change_state(control_state->down_released);
+void control_down_released(uint8_t repeats) {
+	if (control_state->repeats > 0 && repeats > control_state->repeats) {
+		control_change_state(control_state->next);
+	} else {
+		control_change_state(control_state->down_released);
+	}
 }
 
 void control_select_pressed(void) {
 	control_change_state(control_state->select_pressed);
 }
 
-void control_select_released(void) {
-	control_change_state(control_state->select_released);
+void control_select_released(uint8_t repeats) {
+	if (control_state->repeats > 0 && repeats > control_state->repeats) {
+		control_change_state(control_state->next);
+	} else {
+		control_change_state(control_state->select_released);
+	}
 }
 
 void control_tick(uint8_t ticks) {
@@ -135,10 +148,10 @@ void control_tick(uint8_t ticks) {
 #define BUTTON_SELECT 0xfb04ef10 //0x10ef04fb
 
 void button_pressed(uint32_t button) {
-	bitbang_spi(button >> 24);
-	bitbang_spi(button >> 16);
-	bitbang_spi(button >> 8);
-	bitbang_spi(button >> 0);
+	//bitbang_spi(button >> 24);
+	//bitbang_spi(button >> 16);
+	//bitbang_spi(button >> 8);
+	//bitbang_spi(button >> 0);
 	if (button == BUTTON_UP) {
 		control_up_pressed();
 	}
@@ -152,19 +165,19 @@ void button_pressed(uint32_t button) {
 }
 
 void button_released(uint32_t button, uint8_t repeats) {
-	bitbang_spi(button >> 24);
-	bitbang_spi(button >> 16);
-	bitbang_spi(button >> 8);
-	bitbang_spi(button >> 0);
-	bitbang_spi(repeats);
+	//bitbang_spi(button >> 24);
+	//bitbang_spi(button >> 16);
+	//bitbang_spi(button >> 8);
+	//bitbang_spi(button >> 0);
+	//bitbang_spi(repeats);
 	if (button == BUTTON_UP) {
-		control_up_released();
+		control_up_released(repeats);
 	}
 	if (button == BUTTON_DOWN) {
-		control_down_released();
+		control_down_released(repeats);
 	}
 	if (button == BUTTON_SELECT) {
-		control_select_released();
+		control_select_released(repeats);
 	}
 	// ignore any other buttons
 }
@@ -231,7 +244,7 @@ void packet_start(void) {
 
 void packet_repeat(void) {
 	button_repeat(packet.button);
-	control_tick(packet.repeats);
+	//control_tick(packet.repeats);
 	if (packet.repeats < 255) packet.repeats++;
 } 
 
