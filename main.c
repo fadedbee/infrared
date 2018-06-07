@@ -4,9 +4,11 @@
 #include <avr/io.h>
 #include <util/delay.h>
 #include <avr/interrupt.h>
- 
+
+#define NULL	((void *)0)
 
 void bitbang_spi(uint8_t b) {
+	uint8_t tmp = PORTB;
 	PORTB = 4;
 	for (int i = 0; i < 8; i++, b = b << 1) {
 		if (b & 0x80) {
@@ -18,7 +20,114 @@ void bitbang_spi(uint8_t b) {
 		}
 	}
 	PORTB = 4;
+	PORTB = tmp;
 }
+
+typedef struct control_state {
+	uint8_t id;
+	void (*entry)(void);
+	uint8_t up_pressed;
+	uint8_t up_released;
+	uint8_t down_pressed;
+	uint8_t down_released;
+	uint8_t select_pressed;
+	uint8_t select_released;
+	uint8_t ticks;
+	uint8_t next;
+} control_state_t;
+
+static control_state_t *control_state;
+
+#define CLOCKWISE_PIN	PB2
+#define WIDDERSHINS_PIN	PB1
+#define SELECT_PIN	PB0
+#define ERROR_PIN	PB3
+
+void control_idle(void) {
+	PORTB = 0;	
+}
+
+void control_volume_up(void) {
+	PORTB = (1 << CLOCKWISE_PIN);	
+}
+
+void control_volume_down(void) {
+	PORTB = (1 << WIDDERSHINS_PIN);	
+}
+
+void control_select(void) {
+	PORTB = (1 << SELECT_PIN);	
+}
+
+void control_error(void) {
+	PORTB = (1 << ERROR_PIN);	
+}
+
+#define ZERO	0
+#define IDLE	1
+#define VOLUP	2
+#define VOLUPC	3
+#define VOLDN	4
+#define VOLDNC	5
+#define SELECT	6
+#define SELC	7
+#define ERR	8
+
+static control_state_t control_states[] = {
+	//		ENTRY			UP_P	UP_R	DOWN_P	DOWN_R	SEL_P	SEL_R	TICKS	NEXT
+	{ ZERO,		control_volume_down,	ZERO,	ZERO,	ZERO,	ZERO,	ZERO,	ZERO,	3*16,	IDLE	},
+	{ IDLE,		control_idle,		VOLUP,	ERR,	VOLDN,	ERR,	SELECT,	ERR,	0,	ERR	},
+	{ VOLUP,	control_volume_up,	ERR,	VOLUPC,	ERR,	ERR,	ERR,	ERR,	0,	ERR	},
+	{ VOLUPC,	NULL,			ERR,	ERR,	VOLDN,	ERR,	SELECT,	ERR,	1*16,	IDLE	},
+	{ VOLDN,	control_volume_down,	ERR,	ERR,	ERR,	VOLDNC,	ERR,	ERR,	4,	ZERO	},
+	{ VOLDNC,	NULL,			ERR,	ERR,	VOLDN,	ERR,	SELECT,	ERR,	1*16,	IDLE	},
+	{ SELECT,	control_select,		ERR,	ERR,	ERR,	ERR,	ERR,	SELC,	0,	ERR	},
+	{ SELC,		NULL,			ERR,	ERR,	ERR,	ERR,	SELECT,	ERR,	1,	IDLE	},
+	{ ERR,		control_error,		ERR,	ERR,	ERR,	ERR,	ERR,	ERR,	1,	IDLE	},
+};
+
+void control_change_state(uint8_t state) {
+        control_state = &control_states[state];
+        if (control_state->entry) {
+                control_state->entry();
+        }
+}
+
+void control_init(void) {
+	control_change_state(ZERO);
+}
+
+void control_up_pressed(void) {
+	control_change_state(control_state->up_pressed);
+}
+
+void control_up_released(void) {
+	control_change_state(control_state->up_released);
+}
+
+void control_down_pressed(void) {
+	control_change_state(control_state->down_pressed);
+}
+
+void control_down_released(void) {
+	control_change_state(control_state->down_released);
+}
+
+void control_select_pressed(void) {
+	control_change_state(control_state->select_pressed);
+}
+
+void control_select_released(void) {
+	control_change_state(control_state->select_released);
+}
+
+void control_tick(uint8_t ticks) {
+	if (control_state->ticks > 0 && ticks > control_state->ticks) {
+		control_change_state(control_state->next);
+	}
+}
+
+
 
 #define BUTTON_NONE 0x00000000
 #define BUTTON_UP 0xfe01ef10 //0x10ef01fe
@@ -30,6 +139,16 @@ void button_pressed(uint32_t button) {
 	bitbang_spi(button >> 16);
 	bitbang_spi(button >> 8);
 	bitbang_spi(button >> 0);
+	if (button == BUTTON_UP) {
+		control_up_pressed();
+	}
+	if (button == BUTTON_DOWN) {
+		control_down_pressed();
+	}
+	if (button == BUTTON_SELECT) {
+		control_select_pressed();
+	}
+	// ignore any other buttons
 }
 
 void button_released(uint32_t button, uint8_t repeats) {
@@ -38,6 +157,20 @@ void button_released(uint32_t button, uint8_t repeats) {
 	bitbang_spi(button >> 8);
 	bitbang_spi(button >> 0);
 	bitbang_spi(repeats);
+	if (button == BUTTON_UP) {
+		control_up_released();
+	}
+	if (button == BUTTON_DOWN) {
+		control_down_released();
+	}
+	if (button == BUTTON_SELECT) {
+		control_select_released();
+	}
+	// ignore any other buttons
+}
+
+void button_repeat(uint32_t button) {
+	// nothing to do
 }
 
 typedef struct state {
@@ -63,9 +196,8 @@ typedef struct packet {
 	uint32_t button;
 	uint32_t button_to_release;
 	uint8_t repeats;
+	uint8_t ticks;
 } packet_t;
-
-#define NULL	((void *)0)
 
 #define LOW	0
 #define HIGH	1
@@ -85,15 +217,22 @@ typedef struct packet {
 
 static packet_t packet;
 
+void packet_tick(void) {
+	bitbang_spi(120);
+	bitbang_spi(packet.ticks);
+	control_tick(packet.ticks);
+	if (packet.ticks < 255) packet.ticks++;
+} 
+
 void packet_start(void) {
 	packet.bits = 0;
 	packet.button = BUTTON_NONE;
 } 
 
 void packet_repeat(void) {
-	bitbang_spi(120);
+	button_repeat(packet.button);
+	control_tick(packet.repeats);
 	if (packet.repeats < 255) packet.repeats++;
-	bitbang_spi(packet.repeats);
 } 
 
 void packet_release(void) {
@@ -101,6 +240,7 @@ void packet_release(void) {
 		button_released(packet.button_to_release, packet.repeats);
 		packet.button_to_release = BUTTON_NONE;
 		packet.repeats = 0;
+		packet.ticks = 0;
 	}
 }
 
@@ -114,9 +254,10 @@ void packet_shift_one(void) {
 	packet_shift(1);
 }
 
-void packet_release_and_start(void) {
+void packet_release_start_and_tick(void) {
 	packet_release();
 	packet_start();
+	packet_tick();
 }
 
 void packet_error(void) {
@@ -124,7 +265,7 @@ void packet_error(void) {
 
 static state_t states[] = {
 	//			ENTRY				EARLY		SHORT		LONG		LATE	OVERFLOW
-	{ INIT,		LOW,	NULL,				F_LOW,	255,	ERROR,	0,	ERROR,	0,	ERROR,	INIT },
+	{ INIT,		LOW,	packet_tick,			F_LOW,	255,	ERROR,	0,	ERROR,	0,	ERROR,	INIT },
 	{ F_LOW,	HIGH,	packet_start,			ERROR,	18,	F_HIGH,	72,	ERROR,	255,	ERROR,	ERROR },
 	{ F_HIGH,	LOW,	NULL,				ERROR,	6,	REPEAT,	13,	PRESS,	26,	ERROR,	ERROR },
 	{ REPEAT,	HIGH,	packet_repeat,			ERROR,	0,	IDLE0,	4,	ERROR,	255,	ERROR,	ERROR },
@@ -136,13 +277,14 @@ static state_t states[] = {
 
 	{ IDLE0,	LOW,	NULL,				ERROR,	80,	F_LOW,	240,	ERROR,	255,	ERROR,	IDLE1 },
 	{ IDLE1,	LOW,	NULL,				ERROR,	70,	F_LOW,	210,	IDLE2,	255,	ERROR,	IDLE2 },
-	{ IDLE2,	LOW,	packet_release_and_start,	F_LOW,	255,	ERROR,	0,	ERROR,	0,	ERROR,	IDLE2 },
+	{ IDLE2,	LOW,	packet_release_start_and_tick,	F_LOW,	255,	ERROR,	0,	ERROR,	0,	ERROR,	IDLE2 },
 	{ ERROR,	LOW,	packet_error,			F_LOW,	255,	ERROR,	0,	ERROR,	0,	ERROR,	INIT },
 };
 
 void packet_init(void) {
 	packet.state = &states[INIT];
 	packet.repeats = 0;
+	packet.ticks = 0;
 	//packet.state_started = ticks | TCNT0;
 	packet_start();
 } 
@@ -265,6 +407,7 @@ int main (void)
 	GIMSK |= (1 << PCIE);   // pin change interrupt enable
 	PCMSK |= (1 << PCINT4); // pin change interrupt enabled for PCINT4
 
+	control_init();
 	//packet_init();
 	sei();		  // enable interrupts
 	// FIXME: start clock

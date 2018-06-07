@@ -3,3 +3,4 @@
 2018-06-02T05:55 08:55 - writing expire(), wait_or_expire() and wait()
 2018-06-04T18:25 21:00 - dead end
 2018-06-06T19:45 22:45 - buttons correctly read - now need to add motor/select logic
+2018-06-07T08:45
