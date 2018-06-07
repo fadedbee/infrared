@@ -70,7 +70,7 @@ void control_error(void) {
 #define VOLDN	4
 #define VOLDNC	5
 #define SELECT	6
-#define SELB	8
+#define SELB	7
 #define SELC	8
 #define ERR	9
 
@@ -80,16 +80,20 @@ static control_state_t control_states[] = {
 	{ IDLE,		control_idle,		VOLUP,	ERR,	VOLDN,	ERR,	SELECT,	ERR,	0,	ERR	},
 	{ VOLUP,	control_volume_up,	ERR,	VOLUPC,	ERR,	ERR,	ERR,	ERR,	0,	ERR	},
 	{ VOLUPC,	NULL,			VOLUP,	ERR,	VOLDN,	ERR,	SELECT,	ERR,	8,	IDLE	},
+
 	{ VOLDN,	control_volume_down,	ERR,	ERR,	ERR,	VOLDNC,	ERR,	ERR,	12,	ZERO	},
 	{ VOLDNC,	NULL,			VOLUP,	ERR,	VOLDN,	ERR,	SELECT,	ERR,	8,	IDLE	},
 	{ SELECT,	control_select,		ERR,	ERR,	ERR,	ERR,	ERR,	SELC,	1,	SELB	},
-	{ SELB,		control_idle,		VOLUP,	ERR,	VOLDN,	ERR,	SELECT,	ERR,	0,	ERR	},
+	{ SELB,		control_idle,		ERR,	ERR,	ERR,	ERR,	ERR,	IDLE,	0,	ERR	},
+
 	{ SELC,		NULL,			VOLUP,	ERR,	VOLDN,	ERR,	SELECT,	ERR,	1,	IDLE	},
 	{ ERR,		control_error,		ERR,	ERR,	ERR,	ERR,	ERR,	ERR,	1,	IDLE	},
 };
 
 void control_change_state(uint8_t state) {
+	spi(control_state->id);
         control_state = &control_states[state];
+	spi(control_state->id);
         if (control_state->entry) {
                 control_state->entry();
         }
@@ -116,10 +120,12 @@ void control_down_released(void) {
 }
 
 void control_select_pressed(void) {
+	spi(251);
 	control_change_state(control_state->select_pressed);
 }
 
 void control_select_released(void) {
+	spi(252);
 	control_change_state(control_state->select_released);
 }
 
@@ -142,12 +148,15 @@ void button_pressed(uint32_t button) {
 	//spi(button >> 8);
 	//spi(button >> 0);
 	if (button == BUTTON_UP) {
+		spi(201);
 		control_up_pressed();
 	}
 	if (button == BUTTON_DOWN) {
+		spi(202);
 		control_down_pressed();
 	}
 	if (button == BUTTON_SELECT) {
+		spi(203);
 		control_select_pressed();
 	}
 	// ignore any other buttons
@@ -160,12 +169,15 @@ void button_released(uint32_t button, uint8_t repeats) {
 	//spi(button >> 0);
 	//spi(repeats);
 	if (button == BUTTON_UP) {
+		spi(101);
 		control_up_released();
 	}
 	if (button == BUTTON_DOWN) {
+		spi(102);
 		control_down_released();
 	}
 	if (button == BUTTON_SELECT) {
+		spi(103);
 		control_select_released();
 	}
 	// ignore any other buttons
@@ -221,6 +233,7 @@ static packet_t packet;
 void packet_tick(void) {
 	//spi(120);
 	//spi(packet.ticks);
+	spi(151);
 	control_tick_or_repeat(packet.ticks);
 	if (packet.ticks < 255) packet.ticks++;
 } 
@@ -231,6 +244,7 @@ void packet_start(void) {
 } 
 
 void packet_repeat(void) {
+	spi(152);
 	button_repeat(packet.button);
 	control_tick_or_repeat(packet.repeats);
 	if (packet.repeats < 255) packet.repeats++;
