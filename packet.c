@@ -82,9 +82,7 @@ void packet_init(void) {
 } 
 
 void packet_change_state(uint8_t state) {
-	spi(packet.state->id);
 	packet.state = &states[state];
-	spi(packet.state->id);
 	if (packet.state->entry) {
 		packet.state->entry();
 	}

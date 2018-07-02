@@ -8,6 +8,7 @@ MCU = attiny$(DEVNUM)
 AVRDUDE_DEVICE = attiny$(DEVNUM)
 FUSES = -U lfuse:w:0x62:m -U hfuse:w:0xdf:m -U efuse:w:0xff:m
 
+#CFLAGS=-DDEBUG_SPI -g -Wall -Wpedantic -Werror -std=c11 -mmcu=$(MCU) $(DEVICE_SPECIFIC_CFLAGS) -O2 -save-temps -DF_CPU=$(CLOCK) 
 CFLAGS=-g -Wall -Wpedantic -Werror -std=c11 -mmcu=$(MCU) $(DEVICE_SPECIFIC_CFLAGS) -O2 -save-temps -DF_CPU=$(CLOCK) 
 # adding -mcall-prologues might may the code smaller and slower
 CC=$(TC_PATH)/bin/avr-gcc

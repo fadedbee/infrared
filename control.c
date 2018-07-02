@@ -7,20 +7,26 @@
 #include "util.h"
 #include "pins.h"
 
+/*
+ * NOTE: ticks are 63ms when idle, e.g. ZERO and VOLUPC 
+ * or 100ms when a button is held-down, e.g. VOLDN.
+ *
+ * This could be fixed, but it would add a lot of complexity.
+ */
 control_state_t control_states[] = {
 	//		ENTRY			UP_P	UP_R	DOWN_P	DOWN_R	SEL_P	SEL_R	TICKS	NEXT
-	{ ZERO,		control_volume_down,	ZERO,	ZERO,	ZERO,	ZERO,	ZERO,	ZERO,	48,	IDLE	},
+	{ ZERO,		control_volume_down,	ZERO,	ZERO,	ZERO,	ZERO,	ZERO,	ZERO,	48,	IDLE	},	// 48/16 = 4.0s
 	{ IDLE,		control_idle,		VOLUP,	IDLE,	VOLDN,	IDLE,	SELECT,	IDLE,	0,	ERR	},
 	{ VOLUP,	control_volume_up,	ERR,	VOLUPC,	ERR,	ERR,	ERR,	ERR,	0,	ERR	},
-	{ VOLUPC,	NULL,			VOLUP,	ERR,	VOLDN,	ERR,	SELECT,	ERR,	8,	IDLE	},
+	{ VOLUPC,	NULL,			VOLUP,	ERR,	VOLDN,	ERR,	SELECT,	ERR,	8,	IDLE	},	//  8/16 = 0.5s
 
-	{ VOLDN,	control_volume_down,	ERR,	ERR,	ERR,	VOLDNC,	ERR,	ERR,	12,	ZERO	},
-	{ VOLDNC,	NULL,			VOLUP,	ERR,	VOLDN,	ERR,	SELECT,	ERR,	8,	IDLE	},
+	{ VOLDN,	control_volume_down,	ERR,	ERR,	ERR,	VOLDNC,	ERR,	ERR,	15,	ZERO	},	// 15/10 = 1.5s
+	{ VOLDNC,	NULL,			VOLUP,	ERR,	VOLDN,	ERR,	SELECT,	ERR,	8,	IDLE	},	//  8/16 = 0.5s
 	{ SELECT,	control_select,		ERR,	ERR,	ERR,	ERR,	ERR,	SELC,	1,	SELB	},
 	{ SELB,		control_idle,		ERR,	ERR,	ERR,	ERR,	ERR,	IDLE,	0,	ERR	},
 
 	{ SELC,		NULL,			VOLUP,	ERR,	VOLDN,	ERR,	SELECT,	ERR,	1,	IDLE	},
-	{ ERR,		control_error,		ERR,	ERR,	ERR,	ERR,	ERR,	ERR,	48,	IDLE	},
+	{ ERR,		control_error,		ERR,	ERR,	ERR,	ERR,	ERR,	ERR,	1,	IDLE	},
 };
 
 control_state_t *control_state;
@@ -46,9 +52,9 @@ void control_error(void) {
 }
 
 void control_change_state(uint8_t state) {
-	spi(control_state->id + 100);
+	spi(control_state->id);
         control_state = &control_states[state];
-	spi(control_state->id + 100);
+	spi(control_state->id);
         if (control_state->entry) {
                 control_state->entry();
         }
