@@ -1,0 +1,12 @@
+Pinout for attiny85:
+
+1 Reset (for programming)
+2 Error (should never go high)
+3 IR input
+4 GND
+5 Select, pulsed (also MOSI for programming)
+6 Volume down (also MISO for programming)
+7 Volume up (also SCK for programming)
+8 VCC
+
+

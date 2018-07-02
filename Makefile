@@ -26,14 +26,26 @@ clean: Makefile
 %.hex: %.obj Makefile
 	$(OBJ2HEX) -R .eeprom -O ihex $< $@
 
-main.o: main.c Makefile
+util.o: util.c util.h Makefile
+	$(CC) $(CFLAGS) -c util.c -o util.o
+
+control.o: control.c control.h util.h pins.h Makefile
+	$(CC) $(CFLAGS) -c control.c -o control.o
+
+button.o: button.c button.h util.h control.h Makefile
+	$(CC) $(CFLAGS) -c button.c -o button.o
+
+packet.o: packet.c packet.h button.h control.h util.h pins.h Makefile
+	$(CC) $(CFLAGS) -c packet.c -o packet.o
+
+main.o: main.c control.h packet.h Makefile
 	$(CC) $(CFLAGS) -c main.c -o main.o
 
 main.i: main.c Makefile
 	$(CC) $(CFLAGS) main.c -E -o main.i 
 
-main.obj: main.o Makefile
-	$(CC) $(CFLAGS) main.o $(LDFLAGS) -o main.obj
+main.obj: util.o control.o button.o packet.o main.o Makefile
+	$(CC) $(CFLAGS) util.o control.o button.o packet.o main.o $(LDFLAGS) -o main.obj
 
 install: main.hex Makefile
 	$(AVRDUDE) -p $(AVRDUDE_DEVICE) -c avrispmkII -P $(PORT) -U flash:w:main.hex
